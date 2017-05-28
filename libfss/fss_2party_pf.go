@@ -9,7 +9,7 @@ import (
 	"crypto/aes"
 	"crypto/rand"
 	"encoding/binary"
-	//"fmt"
+	"fmt"
 )
 
 type FssKeyEq2P struct {
@@ -23,14 +23,22 @@ type FssKeyEq2P struct {
 // It creates keys for a function that evaluates to b when input x = a.
 
 func (f Fss) GenerateTreePF(a, b uint) []FssKeyEq2P {
+	// 長度為2的FssKeyEq2P陣列
 	fssKeys := make([]FssKeyEq2P, 2)
 	// Set up initial values
+	// 長度為16+1的陣列
 	tempRand1 := make([]byte, aes.BlockSize+1)
+	// 隨機讀取16+1個數字，放入tempRand1
 	rand.Read(tempRand1)
+	// fssKeys[0].SInit ＝ 取tempRand1前面16個數字
 	fssKeys[0].SInit = tempRand1[:aes.BlockSize]
+	// fssKeys[0].TInit ＝ tempRand1最後一個數字取2個餘數
 	fssKeys[0].TInit = tempRand1[aes.BlockSize] % 2
+	// fssKeys[1].SInit ＝ 初始化，長度為16的陣列
 	fssKeys[1].SInit = make([]byte, aes.BlockSize)
+	// 隨機讀取16個數字，放入fssKeys[1]
 	rand.Read(fssKeys[1].SInit)
+	// ^ 把左右兩邊的數字轉為二進制比較，相同的為0，相異的為1
 	fssKeys[1].TInit = fssKeys[0].TInit ^ 1
 
 	// Set current seed being used
@@ -51,18 +59,21 @@ func (f Fss) GenerateTreePF(a, b uint) []FssKeyEq2P {
 	}
 
 	leftStart := 0
-	rightStart := aes.BlockSize + 1
+	rightStart := aes.BlockSize + 1 //=17
 	for i := uint(0); i < f.NumBits; i++ {
 		// "expand" seed into two seeds + 2 bits
+		// 產生亂數的f.Temp, f.Out
 		prf(sCurr0, f.FixedBlocks, 3, f.Temp, f.Out)
+		// 長度為48的陣列
 		prfOut0 := make([]byte, aes.BlockSize*3)
+		// f.Out的前48個數字丟給prfOut0
 		copy(prfOut0, f.Out[:aes.BlockSize*3])
+		// 產生亂數的f.Temp, f.Out
 		prf(sCurr1, f.FixedBlocks, 3, f.Temp, f.Out)
+		// 長度為48的陣列
 		prfOut1 := make([]byte, aes.BlockSize*3)
+		// f.Out的前48個數字丟給prfOut1
 		copy(prfOut1, f.Out[:aes.BlockSize*3])
-
-		//fmt.Println(i, sCurr0)
-		//fmt.Println(i, sCurr1)
 		// Parse out "t" bits
 		t0Left := prfOut0[aes.BlockSize] % 2
 		t0Right := prfOut0[(aes.BlockSize*2)+1] % 2
@@ -70,16 +81,16 @@ func (f Fss) GenerateTreePF(a, b uint) []FssKeyEq2P {
 		t1Right := prfOut1[(aes.BlockSize*2)+1] % 2
 		// Find bit in a
 		aBit := getBit(a, (f.N - f.NumBits + i + 1), f.N)
-
 		// Figure out which half of expanded seeds to keep and lose
-		keep := rightStart
-		lose := leftStart
+		keep := rightStart // = 17
+		lose := leftStart  // = 0
 		if aBit == 0 {
 			keep = leftStart
 			lose = rightStart
 		}
-		//fmt.Println("keep", keep)
-		//fmt.Println("aBit", aBit)
+		// aBit = 0 -> keep = 0, lose = 17
+		// aBit = 1 -> keep = 17, lose = 0
+
 		// Set correction words for both keys. Note: they are the same
 		for j := 0; j < aes.BlockSize; j++ {
 			fssKeys[0].CW[i][j] = prfOut0[lose+j] ^ prfOut1[lose+j]
@@ -94,8 +105,7 @@ func (f Fss) GenerateTreePF(a, b uint) []FssKeyEq2P {
 			sCurr0[j] = prfOut0[keep+j] ^ (tCurr0 * fssKeys[0].CW[i][j])
 			sCurr1[j] = prfOut1[keep+j] ^ (tCurr1 * fssKeys[0].CW[i][j])
 		}
-		//fmt.Println("sKeep0:", prfOut0[keep:keep+aes.BlockSize])
-		//fmt.Println("sKeep1:", prfOut1[keep:keep+aes.BlockSize])
+
 		tCWKeep := fssKeys[0].CW[i][aes.BlockSize]
 		if keep == rightStart {
 			tCWKeep = fssKeys[0].CW[i][aes.BlockSize+1]
@@ -108,6 +118,7 @@ func (f Fss) GenerateTreePF(a, b uint) []FssKeyEq2P {
 	sFinal1, _ := binary.Varint(sCurr1[:8])
 	fssKeys[0].FinalCW = (int(b) - int(sFinal0) + int(sFinal1))
 	fssKeys[1].FinalCW = fssKeys[0].FinalCW
+
 	if tCurr1 == 1 {
 		fssKeys[0].FinalCW = fssKeys[0].FinalCW * -1
 		fssKeys[1].FinalCW = fssKeys[0].FinalCW
@@ -121,24 +132,27 @@ func (f Fss) EvaluatePF(serverNum byte, k FssKeyEq2P, x uint) int {
 	sCurr := make([]byte, aes.BlockSize)
 	copy(sCurr, k.SInit)
 	tCurr := k.TInit
+	// NumBits = 6
 	for i := uint(0); i < f.NumBits; i++ {
 		prf(sCurr, f.FixedBlocks, 3, f.Temp, f.Out)
-		//fmt.Println(i, sCurr)
-		//fmt.Println(i, "f.Out:", f.Out)
 		// Keep counter to ensure we are accessing CW correctly
 		count := 0
+		// aes.BlockSize*2+2 = 34
 		for j := 0; j < aes.BlockSize*2+2; j++ {
 			// Make sure we are doing G(s) ^ (t*sCW||tLCW||sCW||tRCW)
 			if j == aes.BlockSize+1 {
+				// j = 17, count = 0
 				count = 0
 			} else if j == aes.BlockSize*2+1 {
+				// j = 33, count = 17
 				count = aes.BlockSize + 1
 			}
 			f.Out[j] = f.Out[j] ^ (tCurr * k.CW[i][count])
 			count++
 		}
 		xBit := getBit(x, (f.N - f.NumBits + i + 1), f.N)
-		//fmt.Println("xBit", xBit)
+		fmt.Println("xBit", xBit)
+		fmt.Println("f.Out", f.Out)
 		// Pick right seed expansion based on
 		if xBit == 0 {
 			copy(sCurr, f.Out[:aes.BlockSize])
@@ -147,7 +161,6 @@ func (f Fss) EvaluatePF(serverNum byte, k FssKeyEq2P, x uint) int {
 			copy(sCurr, f.Out[(aes.BlockSize+1):(aes.BlockSize*2+1)])
 			tCurr = f.Out[aes.BlockSize*2+1] % 2
 		}
-		//fmt.Println(f.Out)
 	}
 	sFinal, _ := binary.Varint(sCurr[:8])
 	if serverNum == 0 {
