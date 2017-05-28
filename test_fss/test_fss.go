@@ -12,20 +12,19 @@ func main() {
 	fssKeys := fClient.GenerateTreePF(5, 1)
 
 	// Simulate server
-	// fClient.PrfKeys = 4個隨機16個數字的陣列, fClient.NumBits = 6
 	fServer := libfss.ServerInitialize(fClient.PrfKeys, fClient.NumBits)
-
+	fmt.Println("fClient.PrfKeys:", fClient.PrfKeys) //4組隨機16個數字
+	fmt.Println("fClient.NumBits:", fClient.NumBits) //6
 	// Test 2-party Equality Function
 	var ans0, ans1 int = 0, 0
 	ans0 = fServer.EvaluatePF(0, fssKeys[0], 5)
 	ans1 = fServer.EvaluatePF(1, fssKeys[1], 5)
-	fmt.Println("fssKeys[0]:", fssKeys[0])
-	fmt.Println("fssKeys[1]", fssKeys[1])
+	fmt.Println("ans0", ans0)
 	fmt.Println("5 is Match (should be non-zero):", ans0+ans1)
 
-	// ans0 = fServer.EvaluatePF(0, fssKeys[0], 10)
-	// ans1 = fServer.EvaluatePF(1, fssKeys[1], 10)
-	// fmt.Println("11 is No Match (should be 0):", ans0+ans1)
+	ans0 = fServer.EvaluatePF(0, fssKeys[0], 10)
+	ans1 = fServer.EvaluatePF(1, fssKeys[1], 10)
+	fmt.Println("11 is No Match (should be 0):", ans0+ans1)
 
 	// ans0 = fServer.EvaluatePF(0, fssKeys[0], 9)
 	// ans1 = fServer.EvaluatePF(1, fssKeys[1], 9)

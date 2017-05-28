@@ -15,15 +15,19 @@ import (
 // of bits to check
 func ClientInitialize(numBits uint) *Fss {
 	f := new(Fss)
+	// numBits = 6
 	f.NumBits = numBits
+	// initPRFLen = 4 (@fss_util.go)
 	f.PrfKeys = make([][]byte, initPRFLen)
 	// Create fixed AES blocks
 	f.FixedBlocks = make([]cipher.Block, initPRFLen)
+	// 長度為4的迴圈
 	for i := uint(0); i < initPRFLen; i++ {
+		// 一維陣列，長度=16
 		f.PrfKeys[i] = make([]byte, aes.BlockSize)
+		// 隨機讀取16個數字，放入f.PrfKeys[i]
 		rand.Read(f.PrfKeys[i])
-		//fmt.Println("client")
-		//fmt.Println(f.PrfKeys[i])
+		// 產生加密用的block
 		block, err := aes.NewCipher(f.PrfKeys[i])
 		if err != nil {
 			panic(err.Error())
@@ -54,8 +58,6 @@ func ServerInitialize(prfKeys [][]byte, numBits uint) *Fss {
 	for i := range prfKeys {
 		f.PrfKeys[i] = make([]byte, aes.BlockSize)
 		copy(f.PrfKeys[i], prfKeys[i])
-		//fmt.Println("server")
-		//fmt.Println(f.PrfKeys[i])
 		block, err := aes.NewCipher(f.PrfKeys[i])
 		if err != nil {
 			panic(err.Error())

@@ -9,7 +9,7 @@ import (
 	"crypto/aes"
 	"crypto/rand"
 	"encoding/binary"
-	"fmt"
+	// "fmt"
 )
 
 type FssKeyEq2P struct {
@@ -129,10 +129,11 @@ func (f Fss) GenerateTreePF(a, b uint) []FssKeyEq2P {
 // Each of the 2 server calls this function to evaluate their function
 // share on a value. Then, the client adds the results from both servers.
 func (f Fss) EvaluatePF(serverNum byte, k FssKeyEq2P, x uint) int {
+	// 長度為16的陣列
 	sCurr := make([]byte, aes.BlockSize)
 	copy(sCurr, k.SInit)
 	tCurr := k.TInit
-	// NumBits = 6
+	// f.NumBits = 6
 	for i := uint(0); i < f.NumBits; i++ {
 		prf(sCurr, f.FixedBlocks, 3, f.Temp, f.Out)
 		// Keep counter to ensure we are accessing CW correctly
@@ -151,8 +152,8 @@ func (f Fss) EvaluatePF(serverNum byte, k FssKeyEq2P, x uint) int {
 			count++
 		}
 		xBit := getBit(x, (f.N - f.NumBits + i + 1), f.N)
-		fmt.Println("xBit", xBit)
-		fmt.Println("f.Out", f.Out)
+		// fmt.Println("xBit", xBit)
+		// fmt.Println("f.Out", f.Out)
 		// Pick right seed expansion based on
 		if xBit == 0 {
 			copy(sCurr, f.Out[:aes.BlockSize])
@@ -161,7 +162,33 @@ func (f Fss) EvaluatePF(serverNum byte, k FssKeyEq2P, x uint) int {
 			copy(sCurr, f.Out[(aes.BlockSize+1):(aes.BlockSize*2+1)])
 			tCurr = f.Out[aes.BlockSize*2+1] % 2
 		}
+		// fmt.Println("tCurr = ", tCurr)
 	}
+	// binary.Varint的功能如下
+	// func Varint(buf []byte) (int64, int) {
+	//   	ux, n := Uvarint(buf) // ok to continue in presence of error
+	//   	x := int64(ux >> 1)
+	//   	if ux&1 != 0 {
+	//   		x = ^x
+	//   	}
+	//   	return x, n
+	//  	}
+	//
+	// func Uvarint(buf []byte) (uint64, int) {
+	//   	var x uint64
+	//   	var s uint
+	//   	for i, b := range buf {
+	//   		if b < 0x80 {
+	//   			if i > 9 || i == 9 && b > 1 {
+	//   				return 0, -(i + 1) // overflow
+	//   			}
+	//   			return x | uint64(b)<<s, i + 1
+	//   		}
+	//   		x |= uint64(b&0x7f) << s
+	//   		s += 7
+	//   	}
+	//   	return 0, 0
+	// 	}
 	sFinal, _ := binary.Varint(sCurr[:8])
 	if serverNum == 0 {
 		return int(sFinal) + int(tCurr)*k.FinalCW
